@@ -29,6 +29,7 @@ private:
   uint8_t servo_pin_;
 
   float target_deg_;
+  float target_speed_;
   float deg_abs_;
   float speed_abs_;
   int rev_;
@@ -45,6 +46,7 @@ public:
   {
     servo_pin_ = servo_pin;
     target_deg_ = 0;
+    target_speed_ = 0;
     deg_abs_ = 0;
     rev_ = 0;
     deg_ = 0;
@@ -57,6 +59,7 @@ public:
   {
     servo_pin_ = servo_pin;
     target_deg_ = 0;
+    target_speed_ = 0;
     deg_abs_ = 0;
     rev_ = 0;
     deg_ = 0;
@@ -95,8 +98,26 @@ public:
     static float prev_degree = 0;
     float dt = measureTimeInterval();
     speed_ = (deg_ - prev_degree) / dt;
+    speed_ = smoothing(speed_);
+    
     prev_degree = deg_;
   }
+  float smoothing(float val)
+  {
+    static float prev_val = 0;
+    static float values[100] = {};
+    int n = 100;
+    float sum = 0;
+    for(int i = 0; i < n-1; i++)
+    {
+      values[i] = values[i+1];
+      sum += values[i];
+    }
+    values[n-1] = val;
+    sum += values[n-1];
+    return sum / n;
+  }
+  
   float getDegree()
   {
     return deg_;
@@ -155,6 +176,26 @@ public:
     float u = pid_.control_I_PD(target_deg_, deg_);
     commandMotor( u );
   }
+  void controlSpeed()
+  {
+    static float A = 5.5;
+    static float e = 0.00001;
+    A += (speed_ - target_speed_) * e;
+    float u = target_speed_ / A; 
+    commandMotor( u );
+  }
+  
+  void controlLowSpeed()
+  {
+    static unsigned long prev_time = 0;
+    static float target_deg = deg_;
+    unsigned long current_time = micros();
+    float lost_time = float(current_time - prev_time) / 1000000.0;
+    prev_time = current_time;
+    target_deg += target_speed_ * lost_time;
+    float u = pid_.control_I_PD(target_deg, deg_);
+    commandMotor( u );    
+  }
   void controlAbsolutePosition()
   {
     float deg = encoder_ -> getDegree();
@@ -185,7 +226,7 @@ public:
   {
     pid_.reset();
   }
-  void setPIDParameter(float p, float i, float d)
+  void setPositionPIDParameter(float p, float i, float d)
   {
     pid_.setParameter(p, i, d);
   }
@@ -193,9 +234,17 @@ public:
   {
     target_deg_ = target_deg;
   }
+  void setTargetSpeed(float target_speed)
+  {
+    target_speed_ = target_speed;
+  }
   float currentTargetDegree()
   {
     return target_deg_;
+  }
+  float currentTargetSpeed()
+  {
+    return target_speed_;
   }
 };
 

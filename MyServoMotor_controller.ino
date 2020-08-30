@@ -7,7 +7,7 @@
 #include "FlappingServo.h"
 
 /*TO DO***********************************************************
-まずABとI2Cで速度を比較
+
 ******************************************************************/
 
 int32_t Register[128] = {};
@@ -49,7 +49,8 @@ void loop() {
   //if(abs(Register[COMMAND_MOTOR]) < 1000)
   if( Register[COMMAND_MOTOR] == Register[COMMAND_MOTOR_CONFIRM] )
     //my_servo.forceCommandESC(Register[COMMAND_MOTOR]);
-    my_servo.setTargetDegree( Register[COMMAND_MOTOR] );
+    //my_servo.setTargetDegree( Register[COMMAND_MOTOR] );
+    my_servo.setTargetSpeed(Register[COMMAND_MOTOR]);
   
   if(Register[COMMAND_START] > 0)
   {
@@ -61,6 +62,7 @@ void loop() {
   }
   if(Register[COMMAND_STOP] > 0)
   {
+    digitalWrite(13, LOW);
     Register[COMMAND_STOP] = 0;
     MsTimer2::stop();
     my_servo.stopMotor();
@@ -83,9 +85,8 @@ void tick()
 
 void servoControl()
 {
-  my_servo.controlPosition();
-  //my_servo.controlAbsolutePosition();
-  // my_servo2.controlPosition();
+  //my_servo.controlPosition();
+  my_servo.controlSpeed();
 }
 
 void setPIDparameter()
@@ -93,7 +94,7 @@ void setPIDparameter()
   float p = float(Register[PARAMETER_P]) / 1000.0;
   float i = float(Register[PARAMETER_I]) / 1000.0;
   float d = float(Register[PARAMETER_D]) / 1000.0;
-  my_servo.setPIDParameter(p, i, d);
+  my_servo.setPositionPIDParameter(p, i, d);
 }
 
 void writeData()
@@ -111,7 +112,8 @@ void writeData()
   }
   else if(func_switch == 2)
   {
-    PC.writeDataWithSize((int)my_servo.currentTargetDegree(), CURRENT_COMMAND);
+    //PC.writeDataWithSize((int)my_servo.currentTargetDegree(), CURRENT_COMMAND);
+    PC.writeDataWithSize((int)my_servo.currentTargetSpeed(), CURRENT_COMMAND);
     func_switch = 0;
   }
   else
