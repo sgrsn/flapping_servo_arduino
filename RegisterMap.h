@@ -11,6 +11,7 @@
 // PC Register Map
 #define MOTOR_DEGREE_ABS  0x08
 #define MOTOR_DEGREE_INC  0x09
-#define MOTOR_SPEED       0x10
+#define MOTOR_SPEED_ABS   0x10
+#define MOTOR_SPEED_INC   0x11
 #define CURRENT_COMMAND   0x15
 #define START_REPLY       0x14
