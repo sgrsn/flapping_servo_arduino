@@ -1,5 +1,6 @@
 // Arduino Register Map
 #define COMMAND_LED   0x02
+#define COMMAND_MODE  0x04
 #define COMMAND_MOTOR 0x05
 #define COMMAND_MOTOR_CONFIRM 0x06
 #define COMMAND_START 0x08

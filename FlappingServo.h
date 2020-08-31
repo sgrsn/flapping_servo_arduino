@@ -19,6 +19,13 @@ enum class UsingEncoder
   I2C = 2,
 };
 
+enum class CommandMode
+{
+  FORCE = 0,
+  POSITION = 1,
+  SPEED = 2,
+};
+
 class FlappingServo
 {
 private:
@@ -28,6 +35,7 @@ private:
   AS5601_I2C *encoder_abs_;
   uint8_t servo_pin_;
 
+  float target_cmd_;
   float target_deg_;
   float target_speed_;
   float deg_abs_;
@@ -35,6 +43,7 @@ private:
   int rev_;
   float deg_;
   float speed_;
+  CommandMode mode_;
 
   unsigned long current_time;
   unsigned long prev_time;
@@ -45,12 +54,14 @@ public:
   FlappingServo(uint8_t servo_pin, AS5601_AB *encoder_ab, AS5601_I2C *encoder_i2c)
   {
     servo_pin_ = servo_pin;
+    target_cmd_ = 0;
     target_deg_ = 0;
     target_speed_ = 0;
     deg_abs_ = 0;
     rev_ = 0;
     deg_ = 0;
     speed_ = 0;
+    mode_ = CommandMode::FORCE;
     encoder_ = encoder_ab;
     encoder_abs_ = encoder_i2c;
     using_encoder_ = UsingEncoder::BOTH;
@@ -58,12 +69,14 @@ public:
   FlappingServo(uint8_t servo_pin, AS5601_I2C *encoder_i2c)
   {
     servo_pin_ = servo_pin;
+    target_cmd_ = 0;
     target_deg_ = 0;
     target_speed_ = 0;
     deg_abs_ = 0;
     rev_ = 0;
     deg_ = 0;
     speed_ = 0;
+    mode_ = CommandMode::FORCE;
     encoder_abs_ = encoder_i2c;
     using_encoder_ = UsingEncoder::I2C;
   }
@@ -155,6 +168,21 @@ public:
     }
     deg_ = rev_*360.0 + encoder_abs_ -> getDegree();
   }
+  void controlMotor()
+  {
+    switch(mode_)
+    {
+      case CommandMode::FORCE:
+        forceCommandESC(target_cmd_);
+        break;
+      case CommandMode::POSITION:
+        controlPosition();
+        break;
+      case CommandMode::SPEED:
+        controlSpeed();
+        break;
+    }
+  }
   void commandMotor(float cmd)
   {
     float u = constrain(cmd, -position_control_min_cmd, position_control_min_cmd);
@@ -179,12 +207,11 @@ public:
   void controlSpeed()
   {
     static float A = 5.5;
-    static float e = 0.00001;
+    static float e = 0.0001;
     A += (speed_ - target_speed_) * e;
     float u = target_speed_ / A; 
     commandMotor( u );
   }
-  
   void controlLowSpeed()
   {
     static unsigned long prev_time = 0;
@@ -229,6 +256,23 @@ public:
   void setPositionPIDParameter(float p, float i, float d)
   {
     pid_.setParameter(p, i, d);
+  }
+
+  void setTarget(float target, CommandMode mode)
+  {
+    mode_ = mode;
+    switch(mode_)
+    {
+      case CommandMode::FORCE:
+        target_cmd_ = target;
+        break;
+      case CommandMode::POSITION:
+        target_deg_ = target;
+        break;
+      case CommandMode::SPEED:
+        target_speed_ = target;
+        break;
+    }
   }
   void setTargetDegree(float target_deg)
   {

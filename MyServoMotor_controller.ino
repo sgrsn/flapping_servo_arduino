@@ -18,7 +18,6 @@ FlappingServo my_servo(servoPin, &encoder_i2c);
 
 uint8_t control_T = 1; // ms
 uint8_t write_T = 25; // ms
-uint8_t fix_T = 10;
 
 void setup() {
   pinMode(13, OUTPUT);
@@ -48,9 +47,9 @@ void loop() {
   
   //if(abs(Register[COMMAND_MOTOR]) < 1000)
   if( Register[COMMAND_MOTOR] == Register[COMMAND_MOTOR_CONFIRM] )
-    //my_servo.forceCommandESC(Register[COMMAND_MOTOR]);
-    //my_servo.setTargetDegree( Register[COMMAND_MOTOR] );
-    my_servo.setTargetSpeed(Register[COMMAND_MOTOR]);
+  {
+    my_servo.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
+  } 
   
   if(Register[COMMAND_START] > 0)
   {
@@ -85,8 +84,7 @@ void tick()
 
 void servoControl()
 {
-  //my_servo.controlPosition();
-  my_servo.controlSpeed();
+  my_servo.controlMotor();
 }
 
 void setPIDparameter()
@@ -112,7 +110,6 @@ void writeData()
   }
   else if(func_switch == 2)
   {
-    //PC.writeDataWithSize((int)my_servo.currentTargetDegree(), CURRENT_COMMAND);
     PC.writeDataWithSize((int)my_servo.currentTargetSpeed(), CURRENT_COMMAND);
     func_switch = 0;
   }
