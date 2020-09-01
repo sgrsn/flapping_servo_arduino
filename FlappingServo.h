@@ -2,8 +2,11 @@
 #define FLAPPINGSERVO_H
 
 #include <AS5601.h>
+#include <Wire.h>
 #include <Servo.h>
 #include <PID.h>
+
+#define IIC_SELECTOR_ADDRESS 0b1110000
 
 uint16_t servo_min_us = 1004;
 uint16_t servo_max_us = 2020;
@@ -34,6 +37,8 @@ private:
   AS5601_AB *encoder_;
   AS5601_I2C *encoder_abs_;
   uint8_t servo_pin_;
+  uint8_t ch_;
+  bool using_i2c_bus_;
 
   float target_cmd_;
   float target_deg_;
@@ -45,6 +50,8 @@ private:
   float speed_;
   CommandMode mode_;
 
+  float current_target_;
+
   unsigned long current_time;
   unsigned long prev_time;
 
@@ -54,6 +61,7 @@ public:
   FlappingServo(uint8_t servo_pin, AS5601_AB *encoder_ab, AS5601_I2C *encoder_i2c)
   {
     servo_pin_ = servo_pin;
+    using_i2c_bus_ = false;
     target_cmd_ = 0;
     target_deg_ = 0;
     target_speed_ = 0;
@@ -62,6 +70,7 @@ public:
     deg_ = 0;
     speed_ = 0;
     mode_ = CommandMode::FORCE;
+    current_target_ = 0;
     encoder_ = encoder_ab;
     encoder_abs_ = encoder_i2c;
     using_encoder_ = UsingEncoder::BOTH;
@@ -69,6 +78,7 @@ public:
   FlappingServo(uint8_t servo_pin, AS5601_I2C *encoder_i2c)
   {
     servo_pin_ = servo_pin;
+    using_i2c_bus_ = false;
     target_cmd_ = 0;
     target_deg_ = 0;
     target_speed_ = 0;
@@ -77,6 +87,24 @@ public:
     deg_ = 0;
     speed_ = 0;
     mode_ = CommandMode::FORCE;
+    current_target_ = 0;
+    encoder_abs_ = encoder_i2c;
+    using_encoder_ = UsingEncoder::I2C;
+  }
+  FlappingServo(uint8_t servo_pin, AS5601_I2C *encoder_i2c, uint8_t ch)
+  {
+    servo_pin_ = servo_pin;
+    ch_ = ch;
+    using_i2c_bus_ = true;
+    target_cmd_ = 0;
+    target_deg_ = 0;
+    target_speed_ = 0;
+    deg_abs_ = 0;
+    rev_ = 0;
+    deg_ = 0;
+    speed_ = 0;
+    mode_ = CommandMode::FORCE;
+    current_target_ = 0;
     encoder_abs_ = encoder_i2c;
     using_encoder_ = UsingEncoder::I2C;
   }
@@ -89,6 +117,8 @@ public:
     }
     if(using_encoder_ != UsingEncoder::AB)
     {
+      if(using_i2c_bus_)
+        setIICDevice(ch_);
       encoder_abs_ -> init();
       encoder_abs_ -> setDirection(EncoderDirection::CW);
     }
@@ -103,6 +133,11 @@ public:
   // Donot run in MsTimer
   void updateAbsoluteEncoder()
   {
+    if(using_i2c_bus_)
+    {
+      setIICDevice(ch_);
+      delayMicroseconds(5);
+    }
     encoder_abs_ -> update();
     deg_abs_ = encoder_abs_ -> getDegree();
     speed_abs_ = encoder_abs_ -> getDegreePerSeconds();
@@ -115,6 +150,16 @@ public:
     
     prev_degree = deg_;
   }
+
+  // using PCA9547D
+  // http://akizukidenshi.com/download/ds/nxp/PCA9547.pdf
+  void setIICDevice(uint8_t device)
+  {
+    Wire.beginTransmission(IIC_SELECTOR_ADDRESS);
+    Wire.write( 0b0001000 | (device & 0b0111) );
+    Wire.endTransmission();
+  }
+  
   float smoothing(float val)
   {
     static float prev_val = 0;
@@ -261,6 +306,7 @@ public:
   void setTarget(float target, CommandMode mode)
   {
     mode_ = mode;
+    current_target_ = target;
     switch(mode_)
     {
       case CommandMode::FORCE:
@@ -289,6 +335,10 @@ public:
   float currentTargetSpeed()
   {
     return target_speed_;
+  }
+  float currentTarget()
+  {
+    return current_target_;
   }
 };
 

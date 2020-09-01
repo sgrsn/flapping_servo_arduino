@@ -14,5 +14,7 @@
 #define MOTOR_DEGREE_INC  0x09
 #define MOTOR_SPEED_ABS   0x10
 #define MOTOR_SPEED_INC   0x11
-#define CURRENT_COMMAND   0x15
+#define MOTOR_DEGREE_2    0x12
+#define MOTOR_SPEED_2     0x13
 #define START_REPLY       0x14
+#define CURRENT_COMMAND   0x15
