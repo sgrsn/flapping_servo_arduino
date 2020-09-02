@@ -7,12 +7,7 @@
 #include "FlappingServo.h"
 
 /*TO DO***********************************************************
-servo2でupdateEncoderするとservo1の方のspeedが狂う。
-角度を一致させておくと落ち着くので、角度の取得が交差している？
-でも角度自体は落ち着いている
-
-smoothing関数をコメントアウトしても動かなくなる、なぜ？
-メモリあたりがなんかありそうな気がしなくもない
+sevo1の方が逆回転のときに動きが激しい
 ******************************************************************/
 
 int32_t Register[128] = {};
@@ -28,7 +23,8 @@ uint8_t control_T = 1; // ms
 //uint8_t write_T = 25; // ms
 uint8_t write_T = 50; // ms
 
-void setup() {
+void setup()
+{
   pinMode(13, OUTPUT);
   my_servo1.init();
   my_servo2.init();
@@ -46,8 +42,10 @@ float speed_inc = 0;
 float deg1 = 0;
 float deg2 = 0;
 float deg_per_sec = 0;
+float deg_per_sec2 = 0;
 
-void loop() {
+void loop()
+{
   //delay(10);
   //digitalWrite(13, Register[COMMAND_LED]);
   //setPIDparameter();
@@ -59,14 +57,14 @@ void loop() {
   //delay(1);
   my_servo2.updateAbsoluteEncoder();
   deg2 = my_servo2.getDegree();
-  //deg_per_sec = my_servo2.getSpeed(); 
+  deg_per_sec2 = my_servo2.getSpeed(); 
   //delay(1);
   //if(abs(Register[COMMAND_MOTOR]) < 1000)
   if( Register[COMMAND_MOTOR] == Register[COMMAND_MOTOR_CONFIRM] )
   {
     my_servo1.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
     my_servo2.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
-  } 
+  }
   
   if(Register[COMMAND_START] > 0)
   {
@@ -90,7 +88,7 @@ void loop() {
 int t_ = 0;
 int t_2 = 0;
 void tick()
-{ 
+{
   t_++;
   t_2++;
   servoControl();
@@ -104,7 +102,7 @@ void tick()
 void servoControl()
 {
   my_servo1.controlMotor();
-  //my_servo2.controlMotor();
+  my_servo2.controlMotor();
 }
 
 void setPIDparameter()
@@ -136,10 +134,17 @@ void writeData()
   else if(func_switch == 3)
   {
     PC.writeDataWithSize((int)deg2, MOTOR_DEGREE_2);
+    func_switch = 4;
+  }
+  else if(func_switch == 4)
+  {
+    PC.writeDataWithSize(deg_per_sec2, MOTOR_SPEED_2);
     func_switch = 0;
   }
   else
+  {
     func_switch = 0;
+  }
 }
 
 void serialEvent()

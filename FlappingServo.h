@@ -40,6 +40,13 @@ private:
   uint8_t ch_;
   bool using_i2c_bus_;
 
+  float A;
+  float e;
+  float prev_val;
+  int values[100];
+  int n;
+  float prev_degree;
+
   float target_cmd_;
   float target_deg_;
   float target_speed_;
@@ -62,6 +69,12 @@ public:
   {
     servo_pin_ = servo_pin;
     using_i2c_bus_ = false;
+    A = 5.5;
+    e = 0.0001;
+    prev_val = 0;
+    n = 100;
+    for(int i = 0; i < n; i++) values[i] = 0;
+    prev_degree = 0;
     target_cmd_ = 0;
     target_deg_ = 0;
     target_speed_ = 0;
@@ -79,6 +92,12 @@ public:
   {
     servo_pin_ = servo_pin;
     using_i2c_bus_ = false;
+    A = 5.5;
+    e = 0.0001;
+    prev_val = 0;
+    n = 100;
+    for(int i = 0; i < n; i++) values[i] = 0;
+    prev_degree = 0;
     target_cmd_ = 0;
     target_deg_ = 0;
     target_speed_ = 0;
@@ -96,6 +115,12 @@ public:
     servo_pin_ = servo_pin;
     ch_ = ch;
     using_i2c_bus_ = true;
+    A = 5.5;
+    e = 0.0001;
+    prev_val = 0;
+    n = 100;
+    for(int i = 0; i < n; i++) values[i] = 0;
+    prev_degree = 0;
     target_cmd_ = 0;
     target_deg_ = 0;
     target_speed_ = 0;
@@ -111,6 +136,7 @@ public:
   void init()
   {
     pid_.setParameter(3.0, 10.0, 0.1);
+    //pid_.setParameter(0.6, 3.0, 0.01);
     if(using_encoder_ != UsingEncoder::I2C)
     {
       encoder_ -> setDirection(EncoderDirection::CCW);
@@ -142,8 +168,6 @@ public:
     deg_abs_ = encoder_abs_ -> getDegree();
     speed_abs_ = encoder_abs_ -> getDegreePerSeconds();
     fixAbsoluteRev();
-
-    static float prev_degree = 0;
     float dt = measureTimeInterval();
     speed_ = (deg_ - prev_degree) / dt;
     speed_ = smoothing(speed_);
@@ -159,12 +183,8 @@ public:
     Wire.write( 0b0001000 | (device & 0b0111) );
     Wire.endTransmission();
   }
-  
   float smoothing(float val)
   {
-    static float prev_val = 0;
-    static float values[100] = {};
-    int n = 100;
     float sum = 0;
     for(int i = 0; i < n-1; i++)
     {
@@ -249,16 +269,16 @@ public:
     float u = pid_.control_I_PD(target_deg_, deg_);
     commandMotor( u );
   }
+
   void controlSpeed()
   {
-    static float A = 5.5;
-    static float e = 0.0001;
     A += (speed_ - target_speed_) * e;
     float u = target_speed_ / A; 
     commandMotor( u );
   }
   void controlLowSpeed()
   {
+    // staticをなくすべき
     static unsigned long prev_time = 0;
     static float target_deg = deg_;
     unsigned long current_time = micros();
