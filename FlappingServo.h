@@ -42,6 +42,7 @@ private:
 
   float A;
   float e;
+  float e_deg;
   float prev_val;
   int values[100];
   int n;
@@ -58,9 +59,14 @@ private:
   CommandMode mode_;
 
   float current_target_;
+  
+  float deg_another_;
 
   unsigned long current_time;
   unsigned long prev_time;
+
+  unsigned long prev_time_forControl;
+  float target_deg_forControl;
 
   UsingEncoder using_encoder_;
   
@@ -70,7 +76,6 @@ public:
     servo_pin_ = servo_pin;
     using_i2c_bus_ = false;
     A = 5.5;
-    e = 0.0001;
     prev_val = 0;
     n = 100;
     for(int i = 0; i < n; i++) values[i] = 0;
@@ -93,7 +98,6 @@ public:
     servo_pin_ = servo_pin;
     using_i2c_bus_ = false;
     A = 5.5;
-    e = 0.0001;
     prev_val = 0;
     n = 100;
     for(int i = 0; i < n; i++) values[i] = 0;
@@ -116,7 +120,6 @@ public:
     ch_ = ch;
     using_i2c_bus_ = true;
     A = 5.5;
-    e = 0.0001;
     prev_val = 0;
     n = 100;
     for(int i = 0; i < n; i++) values[i] = 0;
@@ -135,7 +138,13 @@ public:
   }
   void init()
   {
-    pid_.setParameter(3.0, 10.0, 0.1);
+    prev_time_forControl = micros();
+    target_deg_forControl = 0;
+    deg_another_ = 0;
+    e_deg = 0.000050;
+    e = 0.0001;
+    //pid_.setParameter(3.0, 10.0, 0.1);  // for I-PD
+    pid_.setParameter(2.14282, 0.98876, 0.00); // for PID +/-60deg
     //pid_.setParameter(0.6, 3.0, 0.01);
     if(using_encoder_ != UsingEncoder::I2C)
     {
@@ -244,7 +253,8 @@ public:
         controlPosition();
         break;
       case CommandMode::SPEED:
-        controlSpeed();
+        //controlSpeed();
+        controlSpeedSync();
         break;
     }
   }
@@ -266,7 +276,8 @@ public:
     //float deg = encoder_ -> getDegree();
     //float deg = rev_*360.0 + encoder_abs_ -> getDegree();
     
-    float u = pid_.control_I_PD(target_deg_, deg_);
+    //float u = pid_.control_I_PD(target_deg_, deg_);
+    float u = pid_.control_PID(target_deg_, deg_);
     commandMotor( u );
   }
 
@@ -276,16 +287,24 @@ public:
     float u = target_speed_ / A; 
     commandMotor( u );
   }
-  void controlLowSpeed()
+  
+  void controlSpeedSync()
   {
-    // staticをなくすべき
-    static unsigned long prev_time = 0;
-    static float target_deg = deg_;
+    if(target_speed_ > 0)
+      A += (speed_ - target_speed_) * e + (deg_ - deg_another_) * e_deg;
+    else if(target_speed_ < 0)
+      A += (target_speed_ - speed_) * e + (deg_another_ - deg_) * e_deg;
+    float u = target_speed_ / A; 
+    commandMotor( u );
+  }
+
+  void controlSpeedBasedPosition()
+  {
     unsigned long current_time = micros();
-    float lost_time = float(current_time - prev_time) / 1000000.0;
-    prev_time = current_time;
-    target_deg += target_speed_ * lost_time;
-    float u = pid_.control_I_PD(target_deg, deg_);
+    float lost_time = float(current_time - prev_time_forControl) / 1000000.0;
+    prev_time_forControl = current_time;
+    target_deg_forControl += target_speed_ * lost_time;
+    float u = pid_.control_I_PD(target_deg_forControl, deg_);
     commandMotor( u );    
   }
   void controlAbsolutePosition()
@@ -347,6 +366,10 @@ public:
   void setTargetSpeed(float target_speed)
   {
     target_speed_ = target_speed;
+  }
+  void setAnotherMotorDegree(float deg)
+  {
+    deg_another_ = deg;
   }
   float currentTargetDegree()
   {

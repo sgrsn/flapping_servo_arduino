@@ -10,11 +10,11 @@
 #define PARAMETER_D   0x12
 
 // PC Register Map
-#define MOTOR_DEGREE_ABS  0x08
-#define MOTOR_DEGREE_INC  0x09
-#define MOTOR_SPEED_ABS   0x10
-#define MOTOR_SPEED_INC   0x11
+#define MOTOR_DEGREE_1    0x09
+#define MOTOR_SPEED_1     0x11
 #define MOTOR_DEGREE_2    0x12
 #define MOTOR_SPEED_2     0x13
 #define START_REPLY       0x14
 #define CURRENT_COMMAND   0x15
+
+#define CURRENT_TIME      0x20
