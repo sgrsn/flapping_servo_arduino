@@ -8,6 +8,8 @@
 
 /*TO DO***********************************************************
 sevo1の方が逆回転のときに動きが激しい
+
+servo1を逆方向にしたが同期速度制御ができない
 ******************************************************************/
 
 int32_t Register[64] = {};
@@ -22,7 +24,8 @@ FlappingServo my_servo2(servoPin2, &encoder_i2c2, 1);
 uint8_t control_T = 1; // ms
 //uint8_t write_T = 25; // ms //PCが追い付かないと思ったらグラフの描画が重いっぽい
 //uint8_t write_T = 40; // ms
-uint8_t write_T = 25; // ms
+//uint8_t write_T = 25; // ms
+uint8_t write_T = 40;
 
 int data_set[5] = {};
 
@@ -31,6 +34,7 @@ void setup()
   pinMode(13, OUTPUT);
   my_servo1.init();
   my_servo2.init();
+  my_servo2.setServoDirectionReverse();
   Serial.begin(1000000);
   my_servo1.stopMotor();
   my_servo2.stopMotor();

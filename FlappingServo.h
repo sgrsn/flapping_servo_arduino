@@ -8,11 +8,11 @@
 
 #define IIC_SELECTOR_ADDRESS 0b1110000
 
-uint16_t servo_min_us = 1004;
-uint16_t servo_max_us = 2020;
-uint16_t servo_mid_us = 1512;
+int servo_min_us = 1004;
+int servo_max_us = 2020;
+int servo_mid_us = 1512;
 
-uint16_t servo_min_cmd = 16;
+int servo_min_cmd = 16;
 int position_control_min_cmd = 1000;
 
 enum class UsingEncoder
@@ -69,6 +69,8 @@ private:
   float target_deg_forControl;
 
   UsingEncoder using_encoder_;
+
+  float _dir;
   
 public:
   FlappingServo(uint8_t servo_pin, AS5601_AB *encoder_ab, AS5601_I2C *encoder_i2c)
@@ -141,8 +143,11 @@ public:
     prev_time_forControl = micros();
     target_deg_forControl = 0;
     deg_another_ = 0;
-    e_deg = 0.000050;
-    e = 0.0001;
+    //e_deg = 0.000050;
+    e_deg = 0.000005;
+    //e = 0.0001;
+    e = 0.00001;
+    _dir = 1;
     //pid_.setParameter(3.0, 10.0, 0.1);  // for I-PD
     pid_.setParameter(2.14282, 0.98876, 0.00); // for PID +/-60deg
     //pid_.setParameter(0.6, 3.0, 0.01);
@@ -175,7 +180,11 @@ public:
     }
     encoder_abs_ -> update();
     deg_abs_ = encoder_abs_ -> getDegree();
-    speed_abs_ = encoder_abs_ -> getDegreePerSeconds();
+    if(_dir < 0)
+    {
+      deg_abs_ = 360.0 - deg_abs_;
+    }
+    speed_abs_ = _dir * encoder_abs_ -> getDegreePerSeconds();
     fixAbsoluteRev();
     float dt = measureTimeInterval();
     speed_ = (deg_ - prev_degree) / dt;
@@ -240,7 +249,7 @@ public:
     {
       rev_++;
     }
-    deg_ = rev_*360.0 + encoder_abs_ -> getDegree();
+    deg_ = rev_*360.0 + deg_abs_;//encoder_abs_ -> getDegree();
   }
   void controlMotor()
   {
@@ -260,7 +269,8 @@ public:
   }
   void commandMotor(float cmd)
   {
-    float u = constrain(cmd, -position_control_min_cmd, position_control_min_cmd);
+    //float u = constrain(cmd, -position_control_min_cmd, position_control_min_cmd);
+    float u = _dir * cmd;
     if(servo_min_cmd < abs( u ))
     {
       int servo_us = servo_mid_us + ((float)(servo_max_us-servo_mid_us)/(1000.0)) * u;
@@ -284,7 +294,7 @@ public:
   void controlSpeed()
   {
     A += (speed_ - target_speed_) * e;
-    float u = target_speed_ / A; 
+    float u = target_speed_ / A;
     commandMotor( u );
   }
   
@@ -294,7 +304,7 @@ public:
       A += (speed_ - target_speed_) * e + (deg_ - deg_another_) * e_deg;
     else if(target_speed_ < 0)
       A += (target_speed_ - speed_) * e + (deg_another_ - deg_) * e_deg;
-    float u = target_speed_ / A; 
+    float u = target_speed_ / A;
     commandMotor( u );
   }
 
@@ -328,7 +338,7 @@ public:
     float u = pid_.control_I_PD(target_deg_, deg);
     commandMotor( u );
   }
-  void forceCommandESC(int cmd) // cmd: -1000 to 1000
+  void forceCommandESC(float cmd) // cmd: -1000 to 1000
   {
     int servo_com = servo_mid_us + ((float)(servo_max_us-servo_mid_us)/(1000.0)) * cmd;
     esc_.writeMicroseconds(servo_com);
@@ -382,6 +392,10 @@ public:
   float currentTarget()
   {
     return current_target_;
+  }
+  void setServoDirectionReverse()
+  {
+    _dir = -1;
   }
 };
 
