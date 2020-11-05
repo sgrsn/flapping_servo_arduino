@@ -31,7 +31,7 @@ enum class CommandMode
 
 class FlappingServo
 {
-private:
+public:
   PID pid_;
   Servo esc_;
   AS5601_AB *encoder_;
@@ -41,13 +41,9 @@ private:
   bool using_i2c_bus_;
 
   float A;
-  float e;
+  float e_speed;
   float e_deg;
-  float prev_val;
-  int values[100];
-  int n;
   float prev_degree;
-
   float target_cmd_;
   float target_deg_;
   float target_speed_;
@@ -56,20 +52,16 @@ private:
   int rev_;
   float deg_;
   float speed_;
+  float last_speed_;
+  float accel_abs;
   CommandMode mode_;
-
   float current_target_;
-  
   float deg_another_;
-
   unsigned long current_time;
   unsigned long prev_time;
-
   unsigned long prev_time_forControl;
   float target_deg_forControl;
-
   UsingEncoder using_encoder_;
-
   float _dir;
   
 public:
@@ -77,20 +69,7 @@ public:
   {
     servo_pin_ = servo_pin;
     using_i2c_bus_ = false;
-    A = 5.5;
-    prev_val = 0;
-    n = 100;
-    for(int i = 0; i < n; i++) values[i] = 0;
-    prev_degree = 0;
-    target_cmd_ = 0;
-    target_deg_ = 0;
-    target_speed_ = 0;
-    deg_abs_ = 0;
-    rev_ = 0;
-    deg_ = 0;
-    speed_ = 0;
     mode_ = CommandMode::FORCE;
-    current_target_ = 0;
     encoder_ = encoder_ab;
     encoder_abs_ = encoder_i2c;
     using_encoder_ = UsingEncoder::BOTH;
@@ -99,20 +78,7 @@ public:
   {
     servo_pin_ = servo_pin;
     using_i2c_bus_ = false;
-    A = 5.5;
-    prev_val = 0;
-    n = 100;
-    for(int i = 0; i < n; i++) values[i] = 0;
-    prev_degree = 0;
-    target_cmd_ = 0;
-    target_deg_ = 0;
-    target_speed_ = 0;
-    deg_abs_ = 0;
-    rev_ = 0;
-    deg_ = 0;
-    speed_ = 0;
     mode_ = CommandMode::FORCE;
-    current_target_ = 0;
     encoder_abs_ = encoder_i2c;
     using_encoder_ = UsingEncoder::I2C;
   }
@@ -121,10 +87,14 @@ public:
     servo_pin_ = servo_pin;
     ch_ = ch;
     using_i2c_bus_ = true;
+    mode_ = CommandMode::FORCE;
+    encoder_abs_ = encoder_i2c;
+    using_encoder_ = UsingEncoder::I2C;
+  }
+  void init()
+  {
     A = 5.5;
-    prev_val = 0;
-    n = 100;
-    for(int i = 0; i < n; i++) values[i] = 0;
+    current_target_ = 0;
     prev_degree = 0;
     target_cmd_ = 0;
     target_deg_ = 0;
@@ -133,20 +103,13 @@ public:
     rev_ = 0;
     deg_ = 0;
     speed_ = 0;
-    mode_ = CommandMode::FORCE;
-    current_target_ = 0;
-    encoder_abs_ = encoder_i2c;
-    using_encoder_ = UsingEncoder::I2C;
-  }
-  void init()
-  {
     prev_time_forControl = micros();
     target_deg_forControl = 0;
     deg_another_ = 0;
     //e_deg = 0.000050;
-    e_deg = 0.000005;
+    e_deg = 0.0001;
     //e = 0.0001;
-    e = 0.00001;
+    e_speed = 0.0001;
     _dir = 1;
     //pid_.setParameter(3.0, 10.0, 0.1);  // for I-PD
     pid_.setParameter(2.14282, 0.98876, 0.00); // for PID +/-60deg
@@ -185,10 +148,12 @@ public:
       deg_abs_ = 360.0 - deg_abs_;
     }
     speed_abs_ = _dir * encoder_abs_ -> getDegreePerSeconds();
+    accel_abs = _dir * encoder_abs_ -> getAcceleration();
     fixAbsoluteRev();
     float dt = measureTimeInterval();
+    last_speed_ = speed_;
     speed_ = (deg_ - prev_degree) / dt;
-    speed_ = smoothing(speed_);
+    speed_ = 0.5*last_speed_ + 0.5*speed_;
     
     prev_degree = deg_;
   }
@@ -200,18 +165,6 @@ public:
     Wire.beginTransmission(IIC_SELECTOR_ADDRESS);
     Wire.write( 0b0001000 | (device & 0b0111) );
     Wire.endTransmission();
-  }
-  float smoothing(float val)
-  {
-    float sum = 0;
-    for(int i = 0; i < n-1; i++)
-    {
-      values[i] = values[i+1];
-      sum += values[i];
-    }
-    values[n-1] = val;
-    sum += values[n-1];
-    return sum / n;
   }
   
   float getDegree()
@@ -241,11 +194,11 @@ public:
   }
   void fixAbsoluteRev()
   {
-    if(speed_abs_ > 10000)
+    if(speed_abs_ > 5000)
     {
       rev_--;
     }
-    else if(speed_abs_ < -10000)
+    else if(speed_abs_ < -5000)
     {
       rev_++;
     }
@@ -293,18 +246,22 @@ public:
 
   void controlSpeed()
   {
-    A += (speed_ - target_speed_) * e;
+    A += (speed_ - target_speed_) * e_speed;
     float u = target_speed_ / A;
     commandMotor( u );
   }
-  
+
+  float u_err = 0;
   void controlSpeedSync()
   {
-    if(target_speed_ > 0)
+    /*if(target_speed_ > 0)
       A += (speed_ - target_speed_) * e + (deg_ - deg_another_) * e_deg;
     else if(target_speed_ < 0)
       A += (target_speed_ - speed_) * e + (deg_another_ - deg_) * e_deg;
     float u = target_speed_ / A;
+    commandMotor( u );*/
+    u_err += (target_speed_ - speed_) * e_speed + (deg_another_ - deg_) * e_deg;
+    float u = target_speed_ / A + u_err;
     commandMotor( u );
   }
 
@@ -397,6 +354,23 @@ public:
   {
     _dir = -1;
   }
+  float getAbsSpeed()
+  {
+    return speed_abs_;
+  }
+  float getAbsDegree()
+  {
+    return deg_abs_;
+  }
+  float getAbsAcceleration()
+  {
+    return accel_abs;
+  }
+  int getRevolution()
+  {
+    return rev_;
+  }
+  
 };
 
 #endif  // FLAPPINGSERVO_H

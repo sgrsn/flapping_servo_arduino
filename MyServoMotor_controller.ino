@@ -7,9 +7,7 @@
 #include "FlappingServo.h"
 
 /*TO DO***********************************************************
-sevo1の方が逆回転のときに動きが激しい
-
-servo1を逆方向にしたが同期速度制御ができない
+e_speed, e_degゲインの調整
 ******************************************************************/
 
 int32_t Register[64] = {};
@@ -25,7 +23,7 @@ uint8_t control_T = 1; // ms
 //uint8_t write_T = 25; // ms //PCが追い付かないと思ったらグラフの描画が重いっぽい
 //uint8_t write_T = 40; // ms
 //uint8_t write_T = 25; // ms
-uint8_t write_T = 40;
+uint8_t write_T = 25;//40;
 
 int data_set[5] = {};
 
@@ -40,6 +38,11 @@ void setup()
   my_servo2.stopMotor();
   MsTimer2::set(control_T, tick);
   MsTimer2::start();
+
+  Register[COMMAND_MODE] = (int)CommandMode::SPEED;
+  Register[COMMAND_MOTOR] = 0;
+  Register[COMMAND_MOTOR_CONFIRM] = Register[COMMAND_MOTOR];
+  Register[COMMAND_START] = 1;
 }
 
 float deg_abs = 0;
@@ -54,8 +57,40 @@ float deg_per_sec2 = 0;
 
 bool servo_enable = false;
 
+// loop_rate: 3-6 ms
 void loop()
 {
+  int target = 0;
+  if( Serial.available() >= 1 )
+  {
+    String s = Serial.readStringUntil('\n');
+    if( sscanf(s.c_str(), "%d", &target) == 1 )
+    {
+      Register[COMMAND_MOTOR] = target;
+      Register[COMMAND_MOTOR_CONFIRM] = Register[COMMAND_MOTOR];
+      Serial.println(s);
+    }
+  }
+
+  if(Register[COMMAND_MOTOR] > 0)
+  {
+    float cal_speed1 = my_servo1.getSpeed();
+    float abs_degree1 = my_servo1.getAbsDegree();
+    float cal_degree1 = my_servo1.getDegree();
+    float cal_speed2 = my_servo2.getSpeed();
+    float abs_degree2 = my_servo2.getAbsDegree();
+    float cal_degree2 = my_servo2.getDegree();
+    Serial.print(millis());
+    Serial.print(", ");
+    Serial.print(cal_speed1);
+    Serial.print(", ");
+    Serial.print(cal_degree1);
+    Serial.print(", ");
+    Serial.print(cal_speed2);
+    Serial.print(", ");
+    Serial.println(cal_degree2);
+  }
+  
   //delay(10);
   //digitalWrite(13, Register[COMMAND_LED]);
   //setPIDparameter();
@@ -72,21 +107,23 @@ void loop()
   my_servo1.setAnotherMotorDegree(deg2);
   my_servo2.setAnotherMotorDegree(deg1);
 
+  static int last_time = 0;
+  int current_time = micros();
+  int dt = current_time - last_time;
+  last_time = current_time;
+
   data_set[0] = millis();
-  data_set[1] = deg1;
-  data_set[2] = deg2;
+  data_set[1] = dt;//deg1;
+  data_set[2] = dt;//deg2;
   data_set[3] = deg_per_sec1;
   data_set[4] = deg_per_sec2;
+ 
+  //Serial.print(deg1);
+  //Serial.print(", ");
+  //Serial.println(my_servo1.getAbsSpeed());
+  
 
-  
-  
-  /*static int prev_target_deg = 0;
-  int target_deg = (int)my_servo1.currentTargetDegree();
-  if(target_deg != prev_target_deg)
-    PC.writeDataWithSize(target_deg, CURRENT_COMMAND);
-  prev_target_deg = target_deg;*/
   //delay(1);
-  //if(abs(Register[COMMAND_MOTOR]) < 1000)
   if( Register[COMMAND_MOTOR] == Register[COMMAND_MOTOR_CONFIRM] )
   {
     my_servo1.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
@@ -122,11 +159,11 @@ void tick()
   {
     servoControl();
   }
-  if(t_ > write_T/control_T)
+  /*if(t_ > write_T/control_T)
   {
     t_ = 0;
     writeData();
-  }
+  }*/
 }
 
 void servoControl()
@@ -160,7 +197,7 @@ void writeData()
   {
     //PC.writeDataWithSize((int)my_servo1.currentTarget(), CURRENT_COMMAND);
     PC.writeDataWithSize(data_set[2], MOTOR_DEGREE_2);
-    func_switch = 3;
+    func_switch = 0;
   }
   else if(func_switch == 3)
   {
@@ -178,10 +215,10 @@ void writeData()
   }
 }
 
-void serialEvent()
+/*void serialEvent()
 {
   if (Serial.available() > 0)
   {
     PC.readData();
   }
-}
+}*/
