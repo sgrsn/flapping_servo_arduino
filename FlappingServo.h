@@ -5,6 +5,7 @@
 #include <Wire.h>
 #include <Servo.h>
 #include <PID.h>
+#include <filters.h>
 
 #define IIC_SELECTOR_ADDRESS 0b1110000
 
@@ -43,6 +44,7 @@ public:
   float A;
   float e_speed;
   float e_deg;
+  float Kp;
   float prev_degree;
   float target_cmd_;
   float target_deg_;
@@ -63,9 +65,10 @@ public:
   float target_deg_forControl;
   UsingEncoder using_encoder_;
   float _dir;
+  //Filter filter;
   
 public:
-  FlappingServo(uint8_t servo_pin, AS5601_AB *encoder_ab, AS5601_I2C *encoder_i2c)
+  FlappingServo(uint8_t servo_pin, AS5601_AB *encoder_ab, AS5601_I2C *encoder_i2c)// : filter(0, 0, IIR::ORDER::OD3)
   {
     servo_pin_ = servo_pin;
     using_i2c_bus_ = false;
@@ -74,7 +77,7 @@ public:
     encoder_abs_ = encoder_i2c;
     using_encoder_ = UsingEncoder::BOTH;
   }
-  FlappingServo(uint8_t servo_pin, AS5601_I2C *encoder_i2c)
+  FlappingServo(uint8_t servo_pin, AS5601_I2C *encoder_i2c)// : filter(0, 0, IIR::ORDER::OD3)
   {
     servo_pin_ = servo_pin;
     using_i2c_bus_ = false;
@@ -82,7 +85,7 @@ public:
     encoder_abs_ = encoder_i2c;
     using_encoder_ = UsingEncoder::I2C;
   }
-  FlappingServo(uint8_t servo_pin, AS5601_I2C *encoder_i2c, uint8_t ch)
+  FlappingServo(uint8_t servo_pin, AS5601_I2C *encoder_i2c, uint8_t ch)// : filter(0, 0, IIR::ORDER::OD3)
   {
     servo_pin_ = servo_pin;
     ch_ = ch;
@@ -106,10 +109,9 @@ public:
     prev_time_forControl = micros();
     target_deg_forControl = 0;
     deg_another_ = 0;
-    //e_deg = 0.000050;
     e_deg = 0.0001;
-    //e = 0.0001;
-    e_speed = 0.0001;
+    e_speed = 0.0005;
+    Kp = 0.5;
     _dir = 1;
     //pid_.setParameter(3.0, 10.0, 0.1);  // for I-PD
     pid_.setParameter(2.14282, 0.98876, 0.00); // for PID +/-60deg
@@ -154,6 +156,7 @@ public:
     last_speed_ = speed_;
     speed_ = (deg_ - prev_degree) / dt;
     speed_ = 0.5*last_speed_ + 0.5*speed_;
+    //speed_ = filter.filterIn(speed_);
     
     prev_degree = deg_;
   }
@@ -261,7 +264,7 @@ public:
     float u = target_speed_ / A;
     commandMotor( u );*/
     u_err += (target_speed_ - speed_) * e_speed + (deg_another_ - deg_) * e_deg;
-    float u = target_speed_ / A + u_err;
+    float u = (target_speed_ - speed_)*Kp + u_err; //target_speed_ / A + u_err;
     commandMotor( u );
   }
 
@@ -323,6 +326,10 @@ public:
         break;
       case CommandMode::SPEED:
         target_speed_ = target;
+        /*const float cutoff_freq   = target / 360.0;  //Cutoff frequency in Hz = deg/sec * 1 rev /360 deg
+        const float sampling_time = 0.001; //Sampling time in seconds.
+        IIR::ORDER  order  = IIR::ORDER::OD3; // Order (OD1 to OD4)
+        filter = Filter(cutoff_freq, sampling_time, order);*/
         break;
     }
   }

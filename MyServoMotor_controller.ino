@@ -19,6 +19,7 @@ AS5601_I2C encoder_i2c2;
 FlappingServo my_servo1(servoPin1, &encoder_i2c1, 0);
 FlappingServo my_servo2(servoPin2, &encoder_i2c2, 1);
 
+
 uint8_t control_T = 1; // ms
 //uint8_t write_T = 25; // ms //PCが追い付かないと思ったらグラフの描画が重いっぽい
 //uint8_t write_T = 40; // ms
@@ -32,10 +33,12 @@ void setup()
   pinMode(13, OUTPUT);
   my_servo1.init();
   my_servo2.init();
-  my_servo2.setServoDirectionReverse();
   Serial.begin(1000000);
+  Serial.println("Power on");
+  my_servo2.setServoDirectionReverse();
   my_servo1.stopMotor();
   my_servo2.stopMotor();
+  my_servo1.A = 6.5;
   MsTimer2::set(control_T, tick);
   MsTimer2::start();
 
@@ -43,6 +46,9 @@ void setup()
   Register[COMMAND_MOTOR] = 0;
   Register[COMMAND_MOTOR_CONFIRM] = Register[COMMAND_MOTOR];
   Register[COMMAND_START] = 1;
+
+  delay(4000);
+  Serial.println("Control Start");
 }
 
 float deg_abs = 0;
@@ -69,6 +75,8 @@ void loop()
       Register[COMMAND_MOTOR] = target;
       Register[COMMAND_MOTOR_CONFIRM] = Register[COMMAND_MOTOR];
       Serial.println(s);
+      my_servo1.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
+      my_servo2.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
     }
   }
 
@@ -124,11 +132,11 @@ void loop()
   
 
   //delay(1);
-  if( Register[COMMAND_MOTOR] == Register[COMMAND_MOTOR_CONFIRM] )
+  /*if( Register[COMMAND_MOTOR] == Register[COMMAND_MOTOR_CONFIRM] )
   {
     my_servo1.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
     my_servo2.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
-  }
+  }*/
   
   if(Register[COMMAND_START] > 0)
   {
