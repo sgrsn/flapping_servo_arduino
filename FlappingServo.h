@@ -110,7 +110,7 @@ public:
     target_deg_forControl = 0;
     deg_another_ = 0;
     e_deg = 0.0001;
-    e_speed = 0.0005;
+    e_speed = 0.001;//0.0005;
     Kp = 0.5;
     _dir = 1;
     //pid_.setParameter(3.0, 10.0, 0.1);  // for I-PD

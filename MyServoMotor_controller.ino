@@ -6,6 +6,8 @@
 #include "RegisterMap.h"
 #include "FlappingServo.h"
 
+#define CONSOLE_CONTROL 1
+
 /*TO DO***********************************************************
 e_speed, e_degゲインの調整
 ******************************************************************/
@@ -22,9 +24,7 @@ FlappingServo my_servo2(servoPin2, &encoder_i2c2, 1);
 
 uint8_t control_T = 1; // ms
 //uint8_t write_T = 25; // ms //PCが追い付かないと思ったらグラフの描画が重いっぽい
-//uint8_t write_T = 40; // ms
-//uint8_t write_T = 25; // ms
-uint8_t write_T = 25;//40;
+uint8_t write_T = 40;
 
 int data_set[5] = {};
 
@@ -42,11 +42,6 @@ void setup()
   MsTimer2::set(control_T, tick);
   MsTimer2::start();
 
-  Register[COMMAND_MODE] = (int)CommandMode::SPEED;
-  Register[COMMAND_MOTOR] = 0;
-  Register[COMMAND_MOTOR_CONFIRM] = Register[COMMAND_MOTOR];
-  Register[COMMAND_START] = 1;
-
   delay(4000);
   Serial.println("Control Start");
 }
@@ -61,26 +56,24 @@ float deg2 = 0;
 float deg_per_sec1 = 0;
 float deg_per_sec2 = 0;
 
-bool servo_enable = false;
+bool servo_enable = true;
 
 // loop_rate: 3-6 ms
 void loop()
 {
-  int target = 0;
-  if( Serial.available() >= 1 )
+#ifdef CONSOLE_CONTROL
+  static int target = 0;
+  if( Serial.available() > 0 )
   {
     String s = Serial.readStringUntil('\n');
     if( sscanf(s.c_str(), "%d", &target) == 1 )
     {
-      Register[COMMAND_MOTOR] = target;
-      Register[COMMAND_MOTOR_CONFIRM] = Register[COMMAND_MOTOR];
       Serial.println(s);
-      my_servo1.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
-      my_servo2.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
+      my_servo1.setTarget(target, CommandMode::SPEED);
+      my_servo2.setTarget(target, CommandMode::SPEED);
     }
   }
-
-  if(Register[COMMAND_MOTOR] > 0)
+  if(target > 0)
   {
     float cal_speed1 = my_servo1.getSpeed();
     float abs_degree1 = my_servo1.getAbsDegree();
@@ -99,6 +92,14 @@ void loop()
     Serial.println(cal_degree2);
   }
   
+#else
+  if( Register[COMMAND_MOTOR] == Register[COMMAND_MOTOR_CONFIRM] )
+  {
+    my_servo1.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
+    my_servo2.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
+  }
+#endif
+  
   //delay(10);
   //digitalWrite(13, Register[COMMAND_LED]);
   //setPIDparameter();
@@ -112,17 +113,14 @@ void loop()
   deg2 = my_servo2.getDegree();
   deg_per_sec2 = my_servo2.getSpeed();
 
-  my_servo1.setAnotherMotorDegree(deg2);
-  my_servo2.setAnotherMotorDegree(deg1);
-
   static int last_time = 0;
   int current_time = micros();
   int dt = current_time - last_time;
   last_time = current_time;
 
   data_set[0] = millis();
-  data_set[1] = dt;//deg1;
-  data_set[2] = dt;//deg2;
+  data_set[1] = deg1;
+  data_set[2] = deg2;
   data_set[3] = deg_per_sec1;
   data_set[4] = deg_per_sec2;
  
@@ -132,11 +130,6 @@ void loop()
   
 
   //delay(1);
-  /*if( Register[COMMAND_MOTOR] == Register[COMMAND_MOTOR_CONFIRM] )
-  {
-    my_servo1.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
-    my_servo2.setTarget(Register[COMMAND_MOTOR], (CommandMode)Register[COMMAND_MODE]);
-  }*/
   
   if(Register[COMMAND_START] > 0)
   {
@@ -167,15 +160,22 @@ void tick()
   {
     servoControl();
   }
-  /*if(t_ > write_T/control_T)
+#ifndef CONSOLE_CONTROL
+  if(t_ > write_T/control_T)
   {
     t_ = 0;
     writeData();
-  }*/
+  }
+#endif
 }
 
 void servoControl()
 {
+  float deg1 = my_servo1.getDegree();
+  float deg2 = my_servo2.getDegree();
+  my_servo1.setAnotherMotorDegree(deg2);
+  my_servo2.setAnotherMotorDegree(deg1);
+
   my_servo1.controlMotor();
   my_servo2.controlMotor();
 }
@@ -205,7 +205,7 @@ void writeData()
   {
     //PC.writeDataWithSize((int)my_servo1.currentTarget(), CURRENT_COMMAND);
     PC.writeDataWithSize(data_set[2], MOTOR_DEGREE_2);
-    func_switch = 0;
+    func_switch = 3;
   }
   else if(func_switch == 3)
   {
@@ -223,10 +223,12 @@ void writeData()
   }
 }
 
-/*void serialEvent()
+#ifndef CONSOLE_CONTROL
+void serialEvent()
 {
   if (Serial.available() > 0)
   {
     PC.readData();
   }
-}*/
+}
+#endif
